@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "total_rows": 177493621,
+    "input_files": [
+      "2019-Oct.csv.gz",
+      "2019-Nov.csv.zip",
+      "2019-Dec.csv.gz"
+    ],
+    "user_sample_mod": 40,
+    "chunk_size": 1000000,
+    "elapsed_minutes": 22.73,
+    "note": "Unique user counts in funnel tables are estimated by deterministic user_id modulo sampling."
+  },
+  "event_summary": [
+    {
+      "event_type": "cart",
+      "events": 7350209,
+      "users_chunk_sum": 3551284,
+      "sessions_chunk_sum": 4325926,
+      "revenue": 0.0,
+      "price_sum": 2107919005.54
+    },
+    {
+      "event_type": "purchase",
+      "events": 2821836,
+      "users_chunk_sum": 2053387,
+      "sessions_chunk_sum": 2378593,
+      "revenue": 849329221.91,
+      "price_sum": 849329221.91
+    },
+    {
+      "event_type": "view",
+      "events": 167321576,
+      "users_chunk_sum": 27462005,
+      "sessions_chunk_sum": 39176179,
+      "revenue": 0.0,
+      "price_sum": 47668909141.03
+    }
+  ],
+  "funnel": [
+    {
+      "stage": "view",
+      "sample_users": 196347,
+      "estimated_users": 7853880,
+      "relative_to_view": 1.0
+    },
+    {
+      "stage": "cart",
+      "sample_users": 42791,
+      "estimated_users": 1711640,
+      "relative_to_view": 0.2179355936174222
+    },
+    {
+      "stage": "purchase",
+      "sample_users": 26142,
+      "estimated_users": 1045680,
+      "relative_to_view": 0.13314183562774068
+    }
+  ],
+  "model": {
+    "model": "numpy_logistic_regression",
+    "sample_rows": 249999,
+    "train_rows": 199999,
+    "test_rows": 50000,
+    "positive_rate": 0.11426045704182816,
+    "threshold": 0.5249999999999999,
+    "accuracy": 0.89946,
+    "precision": 0.5367736244348881,
+    "recall": 0.854935019318581,
+    "f1": 0.6594865542233963,
+    "confusion_matrix": [
+      [
+        40105,
+        4201
+      ],
+      [
+        826,
+        4868
+      ]
+    ],
+    "feature_importance": [
+      {
+        "feature": "carts",
+        "coef": 1.5141228669013953
+      },
+      {
+        "feature": "total_events",
+        "coef": 1.0491238727241345
+      },
+      {
+        "feature": "unique_products",
+        "coef": -0.39691329296654054
+      },
+      {
+        "feature": "unique_categories",
+        "coef": -0.22855942782926522
+      },
+      {
+        "feature": "unique_brands",
+        "coef": -0.22245994863674
+      },
+      {
+        "feature": "sessions",
+        "coef": 0.1901916455651487
+      },
+      {
+        "feature": "active_days",
+        "coef": 0.12379102516918417
+      },
+      {
+        "feature": "views",
+        "coef": 0.10265662157456863
+      },
+      {
+        "feature": "avg_price",
+        "coef": -0.020703214890674945
+      },
+      {
+        "feature": "max_price",
+        "coef": -0.003898578518300031
+      }
+    ]
+  }
+}

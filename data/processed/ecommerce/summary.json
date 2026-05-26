@@ -1,0 +1,12 @@
+{
+  "total_rows": 177493621,
+  "input_files": [
+    "2019-Oct.csv.gz",
+    "2019-Nov.csv.zip",
+    "2019-Dec.csv.gz"
+  ],
+  "user_sample_mod": 40,
+  "chunk_size": 1000000,
+  "elapsed_minutes": 22.73,
+  "note": "Unique user counts in funnel tables are estimated by deterministic user_id modulo sampling."
+}

@@ -1,0 +1,34 @@
+# Raw data is too large for GitHub. Download it from Kaggle instead.
+data/raw/
+
+# Large intermediate samples generated from raw logs.
+data/processed/ecommerce/user_features_sample.csv
+data/processed/ecommerce/cart_conversion_sessions.csv
+
+# Runtime logs and temporary outputs.
+outputs/*.log
+outputs/*.err.log
+__pycache__/
+*.pyc
+
+# Local export bundles.
+deliverables/
+*.zip
+*.gz
+
+# LaTeX build artifacts.
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.xdv
+

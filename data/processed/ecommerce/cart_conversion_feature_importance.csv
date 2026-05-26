@@ -1,0 +1,16 @@
+﻿feature,coef
+session_duration_before_cart_minutes,-0.2560797152337952
+cart_weekday,-0.11311431817536231
+first_cart_price,0.095920982840216
+pre_cart_unique_products,0.09354094953970334
+cart_hour,0.06181476747651616
+pre_cart_unique_categories,-0.05818779425907516
+pre_cart_views,-0.04816124643960309
+avg_pre_cart_price,0.02293507793484914
+first_cart_product_view_count_before_cart,0.015509290279377967
+pre_cart_events,0.013120717423827526
+same_product_viewed_before_cart,0.012826776613756098
+pre_cart_unique_brands,-0.005327301606991174
+same_category_viewed_before_cart,0.00513883032875245
+first_cart_category_view_count_before_cart,0.004353380391376368
+max_pre_cart_price,-0.0041087479484680535

@@ -1,0 +1,9 @@
+{
+  "total_rows_scanned": 177493621,
+  "sampled_rows": 8879159,
+  "user_sample_mod": 20,
+  "cart_sessions": 216713,
+  "any_purchase_positive_rate": 0.43992284726804576,
+  "same_product_positive_rate": 0.41250870967593084,
+  "elapsed_minutes": 7.76
+}

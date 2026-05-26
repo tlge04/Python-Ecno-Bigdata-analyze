@@ -1,0 +1,64 @@
+{
+  "model": "numpy_logistic_regression",
+  "sample_rows": 249999,
+  "train_rows": 199999,
+  "test_rows": 50000,
+  "positive_rate": 0.11426045704182816,
+  "threshold": 0.5249999999999999,
+  "accuracy": 0.89946,
+  "precision": 0.5367736244348881,
+  "recall": 0.854935019318581,
+  "f1": 0.6594865542233963,
+  "confusion_matrix": [
+    [
+      40105,
+      4201
+    ],
+    [
+      826,
+      4868
+    ]
+  ],
+  "feature_importance": [
+    {
+      "feature": "carts",
+      "coef": 1.5141228669013953
+    },
+    {
+      "feature": "total_events",
+      "coef": 1.0491238727241345
+    },
+    {
+      "feature": "unique_products",
+      "coef": -0.39691329296654054
+    },
+    {
+      "feature": "unique_categories",
+      "coef": -0.22855942782926522
+    },
+    {
+      "feature": "unique_brands",
+      "coef": -0.22245994863674
+    },
+    {
+      "feature": "sessions",
+      "coef": 0.1901916455651487
+    },
+    {
+      "feature": "active_days",
+      "coef": 0.12379102516918417
+    },
+    {
+      "feature": "views",
+      "coef": 0.10265662157456863
+    },
+    {
+      "feature": "avg_price",
+      "coef": -0.020703214890674945
+    },
+    {
+      "feature": "max_price",
+      "coef": -0.003898578518300031
+    }
+  ]
+}
