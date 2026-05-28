@@ -3,6 +3,7 @@
   "main_label": "label_any_purchase_after_cart",
   "auxiliary_label": "label_same_product_purchase_after_cart",
   "sample_rows": 216713,
+  "split_note": "2019-10, 2019-11 train; 2019-12 test",
   "train_month": "2019-10 and 2019-11",
   "test_month": "2019-12",
   "train_rows": 117390,
@@ -175,7 +176,7 @@
   ],
   "same_product_positive_rate_test": 0.4507213837681101,
   "low_probability_high_value": {
-    "definition": "first_cart_price >= test median and predicted natural conversion probability <= bottom 20%",
+    "definition": "first_cart_price >= test p50% and predicted natural conversion probability <= p20%",
     "price_cut": 164.56,
     "probability_cut": 0.4466600941174477,
     "sessions": 5545,
