@@ -7,18 +7,72 @@
 \usepackage{array}
 \usepackage{listings}
 
+\definecolor{DeckBlue}{RGB}{24,83,133}
+\definecolor{DeckLightBlue}{RGB}{236,246,252}
+\definecolor{DeckOrange}{RGB}{210,113,43}
+\definecolor{DeckGreen}{RGB}{48,139,91}
+\definecolor{DeckText}{RGB}{35,45,60}
+\definecolor{DeckMuted}{RGB}{94,109,130}
+\definecolor{DeckLine}{RGB}{214,224,235}
+\definecolor{CodeBg}{RGB}{248,250,252}
+
+\setbeamercolor{takeawaybox}{fg=DeckText,bg=DeckLightBlue}
+\setbeamercolor{metricbox}{fg=DeckBlue,bg=DeckLightBlue}
+\setbeamercolor{panelbox}{fg=DeckText,bg=white}
+\setbeamercolor{sectionbox}{fg=white,bg=DeckBlue}
+\setbeamercolor{sectionhint}{fg=DeckBlue,bg=DeckLightBlue}
+\setlength{\parskip}{2pt}
+
+\newcommand{\keytakeaway}[1]{%
+  \vspace{0.10cm}
+  \begin{beamercolorbox}[wd=\textwidth,sep=5pt]{takeawaybox}
+    \small\textbf{#1}
+  \end{beamercolorbox}
+}
+
+\newcommand{\metriccard}[2]{%
+  \begin{minipage}[t]{0.23\textwidth}
+    \begin{beamercolorbox}[wd=\linewidth,center,sep=5pt]{metricbox}
+      {\Large\bfseries #1}\\[-1pt]
+      {\scriptsize #2}
+    \end{beamercolorbox}
+  \end{minipage}
+}
+
+\newcommand{\sectionpagecustom}[2]{%
+  \setbeamertemplate{footline}[footlineoff]
+  \begin{frame}[plain]
+    \vfill
+    \begin{beamercolorbox}[wd=\textwidth,center,sep=12pt]{sectionbox}
+      {\LARGE\bfseries #1}
+    \end{beamercolorbox}
+    \vspace{0.25cm}
+    \begin{beamercolorbox}[wd=\textwidth,center,sep=6pt]{sectionhint}
+      {\large #2}
+    \end{beamercolorbox}
+    \vfill
+  \end{frame}
+  \setbeamertemplate{footline}[footlineon]
+}
+
 \lstset{
   language=Python,
   basicstyle=\ttfamily\scriptsize,
   breaklines=true,
   columns=fullflexible,
   frame=single,
+  backgroundcolor=\color{CodeBg},
+  rulecolor=\color{DeckLine},
+  keywordstyle=\color{DeckBlue}\bfseries,
+  commentstyle=\color{DeckMuted},
+  stringstyle=\color{DeckOrange},
   showstringspaces=false
 }
 
 \title[电商行为大数据分析]{基于电商用户行为大数据的消费转化漏斗与购买预测分析}
-\author[期末大作业]{报告人：图力格尔}
-\institute[USTC]{Python 经济大数据分析课程期末展示}
+\subtitle{亿级日志处理 · 转化漏斗 · 购买预测}
+\author[图力格尔]{报告人：图力格尔}
+\institute[USTC]{电商行为数据分析汇报}
 \date{\today}
 
 \begin{document}
@@ -31,24 +85,20 @@
 \end{frame}
 
 \AtBeginSection[]{
-\setbeamertemplate{footline}[footlineoff]
-  \begin{frame}
-    \frametitle{大纲}
-    \tableofcontents[currentsection,subsectionstyle=show/show/hide]
-  \end{frame}
-\setbeamertemplate{footline}[footlineon]
+  \sectionpagecustom{\insertsection}{从问题到数据，再到模型和业务结论}
 }
 
 \section{研究问题}
 
 \begin{frame}
-  \frametitle{为什么选择电商用户行为数据}
+  \frametitle{研究对象：电商用户行为日志}
   \begin{itemize}
     \item 电商平台记录了用户从浏览、加购到购买的完整消费路径。
     \item 用户行为日志天然具有经济含义：消费意愿、促销响应、品类偏好、品牌选择。
-    \item 原始数据达到亿级记录，适合展示 Python 分块处理、聚合分析和机器学习建模。
-    \item 研究目标不是只画统计图，而是回答“哪里流失、什么卖得好、谁更可能购买”。
+    \item 原始日志达到亿级规模，不能用简单表格汇总，必须先做分块读取和聚合。
+    \item 分析围绕“哪里流失、什么卖得好、谁更可能转化”展开。
   \end{itemize}
+  \keytakeaway{电商行为日志连接了用户路径与消费结果。}
 \end{frame}
 
 \begin{frame}
@@ -57,14 +107,15 @@
     \item 三个月内浏览、加购、购买的总体行为结构如何？
     \item 10 月、11 月、12 月之间是否存在促销季和年末消费差异？
     \item 哪些品类、品牌和价格区间贡献了主要交易额？
-    \item 能否利用用户行为特征预测其是否发生购买？
+    \item 能否利用行为特征识别高购买倾向用户和高转化加购 session？
   \end{enumerate}
+  \keytakeaway{四个问题分别对应规模、时间变化、交易结构和购买预测。}
 \end{frame}
 
 \section{数据与方法}
 
 \begin{frame}
-  \frametitle{指标体系}
+  \frametitle{问题如何落到指标}
   \begin{table}
   \centering
   \begin{tabular}{p{0.20\textwidth}p{0.32\textwidth}p{0.36\textwidth}}
@@ -74,14 +125,21 @@
   规模 & 浏览、加购、购买、金额 & 衡量平台整体活跃和交易规模 \\
   转化 & 浏览到加购、浏览到购买、加购到购买 & 判断用户在哪个环节流失 \\
   结构 & 品类、品牌、价格区间 & 找到主要交易来源 \\
-  预测 & Precision、Recall、F1、特征系数 & 识别潜在购买用户 \\
+  预测 & Precision、Recall、F1、TopK/Lift & 识别潜在购买用户和高转化 session \\
   \bottomrule
   \end{tabular}
   \end{table}
+  \keytakeaway{指标设计从总体规模逐步下钻到用户和 session 层面。}
 \end{frame}
 
 \begin{frame}
   \frametitle{数据来源与规模}
+  \centering
+  \metriccard{1.77 亿}{三个月行为日志}\hfill
+  \metriccard{100 万}{单个读取 chunk}\hfill
+  \metriccard{22.7 分钟}{本地处理耗时}\hfill
+  \metriccard{3 个月}{10--12 月窗口}
+  \vspace{0.35cm}
   \begin{table}
   \centering
   \begin{tabular}{lr}
@@ -106,8 +164,9 @@
     \item 用户口径：对 user\_id 去重，用于漏斗和用户购买倾向识别。
     \item 全量事件统计保留 1.77 亿条日志的信息。
     \item 唯一用户漏斗采用 user\_id 固定取模抽样估计，避免本地内存压力。
-    \item 报告中明确区分“事件数”和“估计唯一用户数”，避免口径混用。
+    \item 分析中明确区分“事件数”和“估计唯一用户数”，避免口径混用。
   \end{itemize}
+  \keytakeaway{事件用于描述规模，用户用于描述转化，两类口径分开计算。}
 \end{frame}
 
 \begin{frame}
@@ -119,7 +178,7 @@
         \item 压缩 CSV 分块读取
         \item 时间、价格、品类、品牌清洗
         \item 日、月、小时维度聚合
-        \item 品类、品牌、价格区间统计
+        \item 用户与 session 特征构造
       \end{itemize}
       \end{block}
     \end{column}
@@ -127,13 +186,14 @@
       \begin{block}{建模分析}
       \begin{itemize}
         \item 用户-月份特征表
-        \item 确定性用户抽样
-        \item 逻辑回归购买预测
-        \item 混淆矩阵与特征解释
+        \item 购物车 session 转化样本
+        \item 逻辑回归与规则基线
+        \item TopK/Lift 与特征解释
       \end{itemize}
       \end{block}
     \end{column}
   \end{columns}
+  \keytakeaway{原始日志先被压缩为聚合表和特征表，再进入图表与模型。}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -152,6 +212,7 @@ for chunk in reader:
   \end{lstlisting}
   \vspace{0.2cm}
   每次只处理 100 万行，保留聚合结果和用户抽样特征，不长期保存原始明细。
+  \keytakeaway{分块读取使本地环境可以处理亿级压缩日志。}
 \end{frame}
 
 \section{行为结构}
@@ -171,6 +232,7 @@ for chunk in reader:
       \end{itemize}
     \end{column}
   \end{columns}
+  \keytakeaway{浏览量占绝对多数，购买行为稀疏，后续分析重点应放在转化环节。}
 \end{frame}
 
 \begin{frame}
@@ -189,6 +251,7 @@ for chunk in reader:
   \end{table}
   \vspace{0.2cm}
   11 月和 12 月的流量与购买量明显高于 10 月，但流量增长并不自动等于转化效率提升。
+  \keytakeaway{促销季带来了规模增长，但需要结合转化率判断真实运营效果。}
 \end{frame}
 
 \begin{frame}
@@ -210,12 +273,14 @@ for chunk in reader:
     \item 加购与购买更接近明确消费动作。
     \item 推荐曝光、购物车提醒和支付激励可以分时段设计。
   \end{itemize}
+  \keytakeaway{不同动作的高峰不完全一致，说明“浏览触达”和“支付转化”应分开运营。}
 \end{frame}
 
 \begin{frame}
   \frametitle{日度行为变化}
   \centering
-  \includegraphics[width=0.94\textwidth]{figures/daily_events.png}
+  \includegraphics[height=0.68\textheight]{figures/daily_events.png}
+  \keytakeaway{日度曲线用于识别促销期和月末变化，避免只看三个月总量。}
 \end{frame}
 
 \begin{frame}
@@ -232,6 +297,7 @@ for chunk in reader:
       \end{itemize}
     \end{column}
   \end{columns}
+  \keytakeaway{10 月转化率最高，11 月加购放大但转化被摊薄，12 月购买量继续上升。}
 \end{frame}
 
 \section{转化漏斗}
@@ -257,6 +323,7 @@ for chunk in reader:
       \end{table}
     \end{column}
   \end{columns}
+  \keytakeaway{约 21.79\% 的浏览用户进入加购，约 13.31\% 最终购买。}
 \end{frame}
 
 \begin{frame}
@@ -267,6 +334,7 @@ for chunk in reader:
     \item 加购未购买用户已经表现出较强意向，是平台二次触达的重点对象。
     \item 促销期不应只看访问峰值，还要看购物车沉淀后的支付转化。
   \end{itemize}
+  \keytakeaway{加购用户已接近购买决策，是转化分析的核心人群。}
 \end{frame}
 
 \section{品类与品牌}
@@ -274,13 +342,15 @@ for chunk in reader:
 \begin{frame}
   \frametitle{销售额最高的品类}
   \centering
-  \includegraphics[width=0.92\textwidth]{figures/top_categories_revenue.png}
+  \includegraphics[height=0.68\textheight]{figures/top_categories_revenue.png}
+  \keytakeaway{消费电子和家电相关品类贡献了主要销售额。}
 \end{frame}
 
 \begin{frame}
   \frametitle{销售额最高的品牌}
   \centering
-  \includegraphics[width=0.92\textwidth]{figures/top_brands_revenue.png}
+  \includegraphics[height=0.68\textheight]{figures/top_brands_revenue.png}
+  \keytakeaway{Apple 与 Samsung 呈现不同结构：一个偏高客单价，一个偏广覆盖。}
 \end{frame}
 
 \begin{frame}
@@ -291,6 +361,7 @@ for chunk in reader:
     \item Samsung 购买次数最高，说明其覆盖更广泛的交易需求。
     \item unknown 品类和品牌占比不低，实际业务中需要改进商品信息治理。
   \end{itemize}
+  \keytakeaway{品牌销售额不能只看购买次数，客单价会显著改变排序。}
 \end{frame}
 
 \begin{frame}
@@ -309,6 +380,7 @@ for chunk in reader:
   \end{tabular}
   \end{table}
   中低价商品贡献交易频次，高价商品贡献销售额，需要分别管理。
+  \keytakeaway{500--1000 和 200--500 两个价格区间合计贡献接近六成销售额。}
 \end{frame}
 
 \section{购买预测}
@@ -324,10 +396,11 @@ for chunk in reader:
   \begin{block}{模型}
     使用 NumPy 实现逻辑回归，并对正样本设置权重以缓解类别不平衡。
   \end{block}
+  \keytakeaway{用户-月份模型刻画购买倾向与行为信号之间的关系。}
 \end{frame}
 
 \begin{frame}
-  \frametitle{标签口径：购买倾向识别，不夸大为实时预测}
+  \frametitle{标签口径：购买倾向识别}
   \begin{itemize}
     \item 样本单位：用户-月份。
     \item 标签：当月是否至少发生一次购买。
@@ -335,6 +408,7 @@ for chunk in reader:
     \item 当前模型适合识别高购买倾向用户。
     \item 更严格的实时预测应使用“前期行为预测后期购买”的时间切分。
   \end{itemize}
+  \keytakeaway{该模型输出的是当月购买倾向，不代表实时下单概率。}
 \end{frame}
 
 \begin{frame}
@@ -361,6 +435,7 @@ for chunk in reader:
       \includegraphics[width=\textwidth]{figures/model_confusion_matrix.png}
     \end{column}
   \end{columns}
+  \keytakeaway{模型更擅长捞出潜在购买用户，Precision 不高但 Recall 达到 85.49\%。}
 \end{frame}
 
 \begin{frame}
@@ -377,6 +452,7 @@ for chunk in reader:
       \end{itemize}
     \end{column}
   \end{columns}
+  \keytakeaway{加购次数是最强信号，说明购物车行为比单纯浏览更接近购买意向。}
 \end{frame}
 
 \begin{frame}
@@ -394,19 +470,21 @@ for chunk in reader:
   \bottomrule
   \end{tabular}
   \end{table}
+  \keytakeaway{模型分数适合做运营排序，不等同于促销干预效果。}
 \end{frame}
 
 \section{购物车转化深化}
 
 \begin{frame}
-  \frametitle{为什么进一步聚焦加购后转化}
+  \frametitle{进一步聚焦加购后转化}
   \begin{itemize}
-    \item 原用户-月份模型适合识别购买倾向，但不是严格实时预测。
+    \item 用户-月份模型刻画整体购买倾向，但时间粒度较粗。
     \item 漏斗中最有业务价值的一段是 cart-to-purchase。
     \item 当前数据集正好包含 view、cart、purchase 行为链路。
     \item 新任务：首次加购前/加购时可见信息，预测后续是否购买。
     \item 这比“当月行为预测当月购买”更能避免时间口径问题。
   \end{itemize}
+  \keytakeaway{观察点前移到首次加购时刻，预测口径更接近实际触达场景。}
 \end{frame}
 
 \begin{frame}
@@ -426,6 +504,7 @@ for chunk in reader:
   \bottomrule
   \end{tabular}
   \end{table}
+  \keytakeaway{模型只看首次加购前后的可用信息，用 12 月数据检验跨月泛化。}
 \end{frame}
 
 \begin{frame}
@@ -437,6 +516,7 @@ for chunk in reader:
     \item 每个 session 只保留首次 cart 前统计、首次 cart 信息和后续购买标签。
     \item 最终得到 216,713 个加购 session 样本，样本构造耗时约 7.76 分钟。
   \end{itemize}
+  \keytakeaway{跨 chunk 维护 session 状态，是这部分工程实现的关键。}
 \end{frame}
 
 \begin{frame}
@@ -460,12 +540,13 @@ for chunk in reader:
     \end{column}
     \begin{column}{0.46\textwidth}
       \begin{itemize}
-        \item 分类阈值不是核心。
-        \item 更重要的是高意向 session 的排序能力。
-        \item 因此重点看 TopK 和 Lift。
+        \item 分类阈值用于形成候选池。
+        \item 高意向 session 的排序质量更接近营销场景。
+        \item TopK 和 Lift 用于衡量有限预算下的触达效率。
       \end{itemize}
     \end{column}
   \end{columns}
+  \keytakeaway{高召回率适合扩大候选池，TopK 排序用于确定优先触达人群。}
 \end{frame}
 
 \begin{frame}
@@ -490,6 +571,7 @@ for chunk in reader:
       \end{table}
     \end{column}
   \end{columns}
+  \keytakeaway{Top 10\% 高分 session 的真实购买率达到 60.22\%，明显高于 12 月整体购买率。}
 \end{frame}
 
 \begin{frame}
@@ -506,10 +588,11 @@ for chunk in reader:
       \end{itemize}
     \end{column}
   \end{columns}
+  \keytakeaway{模型主要借助加购前停留、价格和浏览范围判断自然转化可能性。}
 \end{frame}
 
 \begin{frame}
-  \frametitle{业务解释边界}
+  \frametitle{模型解释边界}
   \begin{itemize}
     \item 高预测分数表示更可能自然购买，不等于最需要发券。
     \item 高自然转化用户：适合库存提醒、支付提醒、服务保障。
@@ -517,6 +600,7 @@ for chunk in reader:
     \item 本文识别到 5,545 个“低自然转化概率 + 高加购价格”session。
     \item 数据没有优惠券、曝光、库存和物流字段，因此不做促销因果解释。
   \end{itemize}
+  \keytakeaway{高分表示自然转化可能高，不代表发券一定有效。}
 \end{frame}
 
 \section{结论}
@@ -524,12 +608,13 @@ for chunk in reader:
 \begin{frame}
   \frametitle{主要结论}
   \begin{enumerate}
-    \item 三个月 1.77 亿条日志呈现明显浏览、加购、购买漏斗。
-    \item 11 月和 12 月行为规模较大，但转化效率需要单独监控。
-    \item 消费电子和家电相关品类贡献主要销售额。
-    \item 月度模型识别购买倾向，购物车模型进一步预测首次加购后的 session 转化。
-    \item 购物车转化模型 Top 10\% 高分 session 真实购买率为 60.22\%，Lift 为 1.25。
+    \item 三个月 1.77 亿条日志呈现明显的浏览、加购、购买漏斗，购买行为相对稀疏。
+    \item 11 月和 12 月带来更大行为规模，但转化效率不能只靠流量判断。
+    \item 销售额集中在消费电子、家电相关品类和 200--1000 的主力价格带。
+    \item 用户-月份模型说明加购是强购买信号，但更适合解释购买倾向。
+    \item 购物车模型用首次加购前信息做跨月测试，Top 10\% 高分 session 真实购买率为 60.22\%。
   \end{enumerate}
+  \keytakeaway{从行为日志到漏斗和排序结果，分析对象始终围绕消费路径展开。}
 \end{frame}
 
 \begin{frame}
@@ -538,9 +623,10 @@ for chunk in reader:
     \begin{column}{0.48\textwidth}
       \begin{block}{建议}
       \begin{itemize}
-        \item 对加购未购买用户重点触达
-        \item 促销期同时关注流量和支付转化
-        \item 对高销售额品类优化库存和价格带
+        \item 对加购用户按自然转化概率分层触达
+        \item 促销期同时监控流量、加购和支付转化
+        \item 对核心品类优化库存、价格带和售后信息
+        \item 改进 unknown 品类和品牌的信息治理
       \end{itemize}
       \end{block}
     \end{column}
@@ -548,28 +634,36 @@ for chunk in reader:
       \begin{block}{不足}
       \begin{itemize}
         \item 唯一用户漏斗采用抽样估计
-        \item 模型尚未严格拆分购买前后行为
-        \item 后续可尝试树模型和序列模型
+        \item 数据缺少曝光、优惠、库存和物流字段
+        \item 月度模型仍是购买倾向识别口径
+        \item 后续可加入滚动窗口、树模型和序列特征
       \end{itemize}
       \end{block}
     \end{column}
   \end{columns}
+  \keytakeaway{运营重点落在加购后的支付转化，同时需要注意字段缺失限制。}
 \end{frame}
 
 \begin{frame}
-  \frametitle{课程技术闭环}
+  \frametitle{方法复盘：口径与验证}
   \begin{itemize}
-    \item Python 脚本化：从原始压缩文件到图表和模型结果可复现。
-    \item Pandas：分块读取、清洗、分组、透视和特征聚合。
-    \item NumPy：逻辑回归的矩阵计算和评价指标计算。
-    \item 可视化：将亿级日志压缩为行为漏斗、时间变化和结构图。
-    \item 机器学习：将描述性分析推进到潜在购买用户识别。
+    \item 数据处理：直接扫描三个月压缩日志，保留全量行为规模。
+    \item 统计口径：区分事件数、用户数、抽样估计和 session 样本。
+    \item 模型评估：购物车模型采用 10--11 月训练、12 月测试。
+    \item 结果解释：同时给出描述性图表、逻辑回归系数和 TopK/Lift。
+    \item 解释边界：不把相关性解释为促销因果效果。
   \end{itemize}
+  \keytakeaway{口径一致、跨月验证和解释边界，是本分析的主要支撑。}
 \end{frame}
 
 \begin{frame}
   \frametitle{致谢}
-  \centerline{\Large 谢谢!}
+  \vfill
+  \begin{center}
+    {\Huge\bfseries 谢谢!}\\[0.35cm]
+    {\large 欢迎老师和同学批评指正}
+  \end{center}
+  \vfill
 \end{frame}
 
 \end{document}
