@@ -3,15 +3,44 @@
   "main_label": "label_any_purchase_after_cart",
   "auxiliary_label": "label_same_product_purchase_after_cart",
   "sample_rows": 216713,
-  "split_note": "2019-10, 2019-11 train; 2019-12 test",
-  "train_month": "2019-10 and 2019-11",
+  "split_note": "2019-10 train; 2019-11 validation; 2019-12 test",
+  "train_month": "2019-10",
+  "validation_month": "2019-11",
   "test_month": "2019-12",
-  "train_rows": 117390,
+  "train_rows": 28649,
+  "validation_rows": 88741,
   "test_rows": 99323,
-  "train_positive_rate": 0.4049919073174887,
+  "train_positive_rate": 0.509023002548082,
+  "validation_positive_rate": 0.3714066778602901,
   "test_positive_rate": 0.4812077766479063,
-  "threshold_selection": "best F1 on training months; TopK/Lift is the primary business evaluation",
+  "threshold_selection": "best balanced accuracy on validation month; TopK/Lift is the primary business evaluation",
   "features": [
+    "pre_cart_events",
+    "pre_cart_views",
+    "pre_cart_unique_products",
+    "pre_cart_unique_categories",
+    "pre_cart_unique_brands",
+    "first_cart_product_view_count_before_cart",
+    "first_cart_category_view_count_before_cart",
+    "first_cart_price",
+    "avg_pre_cart_price",
+    "max_pre_cart_price",
+    "session_duration_before_cart_minutes",
+    "cart_hour",
+    "cart_weekday",
+    "same_product_viewed_before_cart",
+    "same_category_viewed_before_cart",
+    "view_rate_before_cart",
+    "unique_products_per_event",
+    "unique_categories_per_event",
+    "first_price_to_avg_pre_price",
+    "first_price_to_max_pre_price",
+    "price_gap_first_minus_avg",
+    "duration_per_event",
+    "same_product_view_share",
+    "same_category_view_share"
+  ],
+  "baseline_features": [
     "pre_cart_events",
     "pre_cart_views",
     "pre_cart_unique_products",
@@ -28,84 +57,281 @@
     "same_product_viewed_before_cart",
     "same_category_viewed_before_cart"
   ],
-  "model": "numpy_logistic_regression",
-  "metrics": {
-    "threshold": 0.35,
-    "accuracy": 0.4931989569384735,
-    "precision": 0.48667547280580364,
-    "recall": 0.9712940684171985,
-    "f1": 0.6484429017411285,
+  "model": "lightgbm_with_numpy_logistic_regression_baseline",
+  "primary_model": "lightgbm",
+  "lightgbm_params": {
+    "objective": "binary",
+    "n_estimators": 250,
+    "num_leaves": 15,
+    "learning_rate": 0.04,
+    "min_child_samples": 80,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "reg_lambda": 2.0,
+    "random_state": 2026,
+    "verbose": -1,
+    "best_iteration": 232
+  },
+  "logistic_threshold": 0.49999999999999994,
+  "lightgbm_threshold": 0.49999999999999994,
+  "logistic_validation_metrics": {
+    "threshold": 0.49999999999999994,
+    "accuracy": 0.5343415106884079,
+    "precision": 0.4127186208623784,
+    "recall": 0.5999878637094572,
+    "f1": 0.4890383688004649,
     "confusion_matrix": [
       [
-        2563,
-        48965
+        27643,
+        28139
       ],
       [
-        1372,
-        46423
+        13184,
+        19775
       ]
-    ]
+    ],
+    "balanced_accuracy": 0.547770992555313,
+    "predicted_positive_rate": 0.5399308098849461
+  },
+  "logistic_metrics": {
+    "threshold": 0.49999999999999994,
+    "accuracy": 0.5742375884739688,
+    "precision": 0.5510692360479997,
+    "recall": 0.6216549848310493,
+    "f1": 0.5842378480415291,
+    "confusion_matrix": [
+      [
+        27323,
+        24205
+      ],
+      [
+        18083,
+        29712
+      ]
+    ],
+    "balanced_accuracy": 0.5759551899780149,
+    "predicted_positive_rate": 0.5428450610633992
+  },
+  "validation_metrics": {
+    "threshold": 0.49999999999999994,
+    "accuracy": 0.5878906029907258,
+    "precision": 0.45138103698917786,
+    "recall": 0.5087229588276343,
+    "f1": 0.4783396334070323,
+    "confusion_matrix": [
+      [
+        35403,
+        20379
+      ],
+      [
+        16192,
+        16767
+      ]
+    ],
+    "balanced_accuracy": 0.5716950278703086,
+    "predicted_positive_rate": 0.4185889273278417
+  },
+  "metrics": {
+    "threshold": 0.49999999999999994,
+    "accuracy": 0.5874268799774474,
+    "precision": 0.580096345905299,
+    "recall": 0.5164975415838476,
+    "f1": 0.5464526840066409,
+    "confusion_matrix": [
+      [
+        33659,
+        17869
+      ],
+      [
+        23109,
+        24686
+      ]
+    ],
+    "balanced_accuracy": 0.5848576048239065,
+    "predicted_positive_rate": 0.42845061063399215
   },
   "feature_importance": [
     {
-      "feature": "session_duration_before_cart_minutes",
-      "coef": -0.2560797152337952
+      "feature": "duration_per_event",
+      "importance": 0.21404808151199706,
+      "gain": 7544.896231293678
     },
     {
-      "feature": "cart_weekday",
-      "coef": -0.11311431817536231
+      "feature": "view_rate_before_cart",
+      "importance": 0.13285512448193473,
+      "gain": 4682.957777202129
     },
     {
       "feature": "first_cart_price",
-      "coef": 0.095920982840216
+      "importance": 0.1266734127711873,
+      "gain": 4465.061064183712
     },
     {
-      "feature": "pre_cart_unique_products",
-      "coef": 0.09354094953970334
-    },
-    {
-      "feature": "cart_hour",
-      "coef": 0.06181476747651616
-    },
-    {
-      "feature": "pre_cart_unique_categories",
-      "coef": -0.05818779425907516
-    },
-    {
-      "feature": "pre_cart_views",
-      "coef": -0.04816124643960309
+      "feature": "session_duration_before_cart_minutes",
+      "importance": 0.12271587214568595,
+      "gain": 4325.563278734684
     },
     {
       "feature": "avg_pre_cart_price",
-      "coef": 0.02293507793484914
-    },
-    {
-      "feature": "first_cart_product_view_count_before_cart",
-      "coef": 0.015509290279377967
-    },
-    {
-      "feature": "pre_cart_events",
-      "coef": 0.013120717423827526
-    },
-    {
-      "feature": "same_product_viewed_before_cart",
-      "coef": 0.012826776613756098
-    },
-    {
-      "feature": "pre_cart_unique_brands",
-      "coef": -0.005327301606991174
-    },
-    {
-      "feature": "same_category_viewed_before_cart",
-      "coef": 0.00513883032875245
-    },
-    {
-      "feature": "first_cart_category_view_count_before_cart",
-      "coef": 0.004353380391376368
+      "importance": 0.08340941141116542,
+      "gain": 2940.0653786063194
     },
     {
       "feature": "max_pre_cart_price",
-      "coef": -0.0041087479484680535
+      "importance": 0.05842679840823322,
+      "gain": 2059.463126242161
+    },
+    {
+      "feature": "cart_hour",
+      "importance": 0.0570068920798234,
+      "gain": 2009.4134092330933
+    },
+    {
+      "feature": "first_price_to_avg_pre_price",
+      "importance": 0.030912121368364263,
+      "gain": 1089.6091493368149
+    },
+    {
+      "feature": "price_gap_first_minus_avg",
+      "importance": 0.02942757423540832,
+      "gain": 1037.2809341549873
+    },
+    {
+      "feature": "unique_products_per_event",
+      "importance": 0.024370486560382466,
+      "gain": 859.0256493091583
+    },
+    {
+      "feature": "first_price_to_max_pre_price",
+      "importance": 0.021283056526676163,
+      "gain": 750.1980482339859
+    },
+    {
+      "feature": "same_product_view_share",
+      "importance": 0.01926662835362726,
+      "gain": 679.1217684745789
+    },
+    {
+      "feature": "cart_weekday",
+      "importance": 0.017227834863264995,
+      "gain": 607.2571424841881
+    },
+    {
+      "feature": "same_category_view_share",
+      "importance": 0.011502411073699542,
+      "gain": 405.4439420700073
+    },
+    {
+      "feature": "unique_categories_per_event",
+      "importance": 0.011007461222804774,
+      "gain": 387.99765038490295
+    },
+    {
+      "feature": "pre_cart_unique_products",
+      "importance": 0.010578905880463337,
+      "gain": 372.8916724920273
+    },
+    {
+      "feature": "first_cart_category_view_count_before_cart",
+      "importance": 0.008434256402928955,
+      "gain": 297.2957706451416
+    },
+    {
+      "feature": "first_cart_product_view_count_before_cart",
+      "importance": 0.0063759837207327955,
+      "gain": 224.74453032016754
+    },
+    {
+      "feature": "pre_cart_unique_brands",
+      "importance": 0.005164670163428601,
+      "gain": 182.0474174618721
+    },
+    {
+      "feature": "pre_cart_events",
+      "importance": 0.004672825188108747,
+      "gain": 164.71056830883026
+    },
+    {
+      "feature": "pre_cart_views",
+      "importance": 0.002707225468183183,
+      "gain": 95.42592060565948
+    },
+    {
+      "feature": "pre_cart_unique_categories",
+      "importance": 0.0019329661618995,
+      "gain": 68.13436031341553
+    },
+    {
+      "feature": "same_product_viewed_before_cart",
+      "importance": 0.0,
+      "gain": 0.0
+    },
+    {
+      "feature": "same_category_viewed_before_cart",
+      "importance": 0.0,
+      "gain": 0.0
+    }
+  ],
+  "logistic_feature_importance": [
+    {
+      "feature": "session_duration_before_cart_minutes",
+      "coef": -0.34238883781742063
+    },
+    {
+      "feature": "pre_cart_events",
+      "coef": 0.10386911407254183
+    },
+    {
+      "feature": "avg_pre_cart_price",
+      "coef": 0.06419957336594215
+    },
+    {
+      "feature": "first_cart_price",
+      "coef": 0.05694054698419328
+    },
+    {
+      "feature": "cart_hour",
+      "coef": -0.052726436558114174
+    },
+    {
+      "feature": "pre_cart_unique_products",
+      "coef": 0.05111127042854434
+    },
+    {
+      "feature": "pre_cart_unique_categories",
+      "coef": -0.0365983625036559
+    },
+    {
+      "feature": "max_pre_cart_price",
+      "coef": 0.03167938923168776
+    },
+    {
+      "feature": "pre_cart_views",
+      "coef": -0.030147060507767852
+    },
+    {
+      "feature": "first_cart_product_view_count_before_cart",
+      "coef": 0.027669726962283106
+    },
+    {
+      "feature": "cart_weekday",
+      "coef": -0.016239541336518185
+    },
+    {
+      "feature": "same_product_viewed_before_cart",
+      "coef": -0.007203190400508604
+    },
+    {
+      "feature": "same_category_viewed_before_cart",
+      "coef": -0.003564816481582819
+    },
+    {
+      "feature": "first_cart_category_view_count_before_cart",
+      "coef": 0.003540367331314507
+    },
+    {
+      "feature": "pre_cart_unique_brands",
+      "coef": 0.0020551320804978075
     }
   ],
   "topk": [
@@ -145,43 +371,99 @@
       "model": "logistic_regression",
       "top_fraction": 0.01,
       "top_n": 993,
-      "precision_at_k": 0.6666666666666666,
-      "recall_at_k": 0.013850821215608327,
-      "lift": 1.3854029361509224
+      "precision_at_k": 0.6576032225579054,
+      "recall_at_k": 0.01366251699968616,
+      "lift": 1.3665681530310458
     },
     {
       "model": "logistic_regression",
       "top_fraction": 0.05,
       "top_n": 4966,
-      "precision_at_k": 0.6153846153846154,
-      "recall_at_k": 0.06393974265090491,
-      "lift": 1.2788334795239285
+      "precision_at_k": 0.6498187676198147,
+      "recall_at_k": 0.0675175227534261,
+      "lift": 1.3503912429396978
     },
     {
       "model": "logistic_regression",
       "top_fraction": 0.1,
       "top_n": 9932,
-      "precision_at_k": 0.6021949254933548,
-      "recall_at_k": 0.12513861282560937,
-      "lift": 1.2514239268705196
+      "precision_at_k": 0.6347160692710431,
+      "recall_at_k": 0.1318966419081494,
+      "lift": 1.319006258985413
     },
     {
       "model": "logistic_regression",
       "top_fraction": 0.2,
       "top_n": 19864,
-      "precision_at_k": 0.5831151832460733,
-      "recall_at_k": 0.2423475258918297,
-      "lift": 1.2117742304749395
+      "precision_at_k": 0.6103000402738623,
+      "recall_at_k": 0.2536457788471597,
+      "lift": 1.2682672015926526
+    },
+    {
+      "model": "lightgbm",
+      "top_fraction": 0.01,
+      "top_n": 993,
+      "precision_at_k": 0.7109768378650554,
+      "recall_at_k": 0.014771419604561147,
+      "lift": 1.477484098070319
+    },
+    {
+      "model": "lightgbm",
+      "top_fraction": 0.05,
+      "top_n": 4966,
+      "precision_at_k": 0.6915022150624245,
+      "recall_at_k": 0.07184851971963595,
+      "lift": 1.4370137986535243
+    },
+    {
+      "model": "lightgbm",
+      "top_fraction": 0.1,
+      "top_n": 9932,
+      "precision_at_k": 0.6749899315344342,
+      "recall_at_k": 0.14026571817135683,
+      "lift": 1.4026995495301728
+    },
+    {
+      "model": "lightgbm",
+      "top_fraction": 0.2,
+      "top_n": 19864,
+      "precision_at_k": 0.6454389850986709,
+      "recall_at_k": 0.2682498169264567,
+      "lift": 1.3412895975929553
     }
   ],
   "same_product_positive_rate_test": 0.4507213837681101,
   "low_probability_high_value": {
     "definition": "first_cart_price >= test p50% and predicted natural conversion probability <= p20%",
     "price_cut": 164.56,
-    "probability_cut": 0.4466600941174477,
-    "sessions": 5545,
-    "actual_any_purchase_rate": 0.40793507664562667,
-    "avg_first_cart_price": 372.4146726780883
+    "probability_cut": 0.3823319944865997,
+    "sessions": 4985,
+    "actual_any_purchase_rate": 0.3815446339017051,
+    "avg_first_cart_price": 553.9725636910732
   },
-  "baseline_note": "rule_pre_cart_interest = log1p(pre_cart_views) + first-cart-product view count + same-product signal + session-duration signal"
+  "baseline_note": "rule_pre_cart_interest = log1p(pre_cart_views) + first-cart-product view count + same-product signal + session-duration signal",
+  "model_comparison": [
+    {
+      "model": "logistic_regression",
+      "accuracy": 0.5742375884739688,
+      "precision": 0.5510692360479997,
+      "recall": 0.6216549848310493,
+      "f1": 0.5842378480415291,
+      "balanced_accuracy": 0.5759551899780149,
+      "predicted_positive_rate": 0.5428450610633992,
+      "top10_precision": 0.6347160692710431,
+      "top10_lift": 1.319006258985413
+    },
+    {
+      "model": "lightgbm",
+      "accuracy": 0.5874268799774474,
+      "precision": 0.580096345905299,
+      "recall": 0.5164975415838476,
+      "f1": 0.5464526840066409,
+      "balanced_accuracy": 0.5848576048239065,
+      "predicted_positive_rate": 0.42845061063399215,
+      "top10_precision": 0.6749899315344342,
+      "top10_lift": 1.4026995495301728
+    }
+  ]
 }

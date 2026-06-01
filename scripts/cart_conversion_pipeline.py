@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import lightgbm as lgb
 from PIL import Image
 
 from utils import classification_metrics, save_bar_chart, sigmoid
@@ -39,18 +40,29 @@ CHUNKSIZE = 1_000_000
 USER_SAMPLE_MOD = 20
 RANDOM_SEED = 2026
 
-# 购物车模型用 10-11 月训练、12 月测试，避免随机切分带来的时间泄漏。
-TRAIN_MONTHS = ["2019-10", "2019-11"]
+# 购物车模型用 10 月训练、11 月验证、12 月测试，避免随机切分带来的时间泄漏。
+TRAIN_MONTHS = ["2019-10"]
+VALIDATION_MONTH = "2019-11"
 TEST_MONTH = "2019-12"
-MODEL_POS_WEIGHT_CAP = 20.0
 MODEL_LEARNING_RATE = 0.08
 MODEL_L2 = 0.002
 MODEL_STEPS = 800
 MODEL_THRESHOLD_GRID = np.linspace(0.05, 0.95, 37)
-RANDOM_SPLIT_TRAIN_FRACTION = 0.8
 TOPK_FRACTIONS = [0.01, 0.05, 0.10, 0.20]
 LOW_VALUE_PRICE_QUANTILE = 0.50
 LOW_VALUE_PROB_QUANTILE = 0.20
+LIGHTGBM_PARAMS = {
+    "objective": "binary",
+    "n_estimators": 250,
+    "num_leaves": 15,
+    "learning_rate": 0.04,
+    "min_child_samples": 80,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "reg_lambda": 2.0,
+    "random_state": RANDOM_SEED,
+    "verbose": -1,
+}
 
 RULE_PRODUCT_VIEW_WEIGHT = 0.6
 RULE_SAME_PRODUCT_WEIGHT = 0.8
@@ -74,7 +86,36 @@ FEATURE_COLS = [
     "same_product_viewed_before_cart",
     "same_category_viewed_before_cart",
 ]
+ENGINEERED_FEATURE_COLS = [
+    "view_rate_before_cart",
+    "unique_products_per_event",
+    "unique_categories_per_event",
+    "first_price_to_avg_pre_price",
+    "first_price_to_max_pre_price",
+    "price_gap_first_minus_avg",
+    "duration_per_event",
+    "same_product_view_share",
+    "same_category_view_share",
+]
+LIGHTGBM_FEATURE_COLS = FEATURE_COLS + ENGINEERED_FEATURE_COLS
 LABEL_COL = "label_any_purchase_after_cart"
+FEATURE_LABELS = {
+    "duration_per_event": "单次行为间隔",
+    "view_rate_before_cart": "加购前浏览占比",
+    "first_cart_price": "首次加购价格",
+    "session_duration_before_cart_minutes": "加购前时长",
+    "avg_pre_cart_price": "加购前均价",
+    "max_pre_cart_price": "加购前最高价",
+    "cart_hour": "加购小时",
+    "first_price_to_avg_pre_price": "加购价/前均价",
+    "price_gap_first_minus_avg": "加购价-前均价",
+    "unique_products_per_event": "商品分散度",
+    "first_price_to_max_pre_price": "加购价/前最高价",
+    "same_product_view_share": "同商品浏览占比",
+    "cart_weekday": "加购星期",
+    "same_category_view_share": "同品类浏览占比",
+    "unique_categories_per_event": "品类分散度",
+}
 
 
 @dataclass
@@ -298,14 +339,11 @@ def build_cart_session_table() -> pd.DataFrame:
 def fit_logistic(x_train: np.ndarray, y_train: np.ndarray) -> np.ndarray:
     x_aug = np.c_[np.ones(len(x_train)), x_train]
     beta = np.zeros(x_aug.shape[1])
-    pos_rate = max(float(y_train.mean()), 1e-6)
-    pos_weight = min((1 - pos_rate) / pos_rate, MODEL_POS_WEIGHT_CAP)
-    # 正样本加权用于缓解购买样本偏少的问题，但设置上限避免梯度过大。
-    sample_weight = np.where(y_train == 1, pos_weight, 1.0)
+    # 加购 session 的正样本比例不低，使用未加权逻辑回归，避免阈值下过度偏向正类。
     for _ in range(MODEL_STEPS):
         pred = sigmoid(x_aug @ beta)
-        err = (pred - y_train) * sample_weight
-        grad = (x_aug.T @ err) / sample_weight.sum()
+        err = pred - y_train
+        grad = (x_aug.T @ err) / len(y_train)
         grad[1:] += MODEL_L2 * beta[1:]
         beta -= MODEL_LEARNING_RATE * grad
     return beta
@@ -368,48 +406,122 @@ def low_probability_high_value(
     }
 
 
+def add_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    eps = 1e-6
+    events = np.maximum(out["pre_cart_events"].astype(float), 1)
+    views = np.maximum(out["pre_cart_views"].astype(float), 1)
+    avg_price = np.maximum(out["avg_pre_cart_price"].astype(float), eps)
+    max_price = np.maximum(out["max_pre_cart_price"].astype(float), eps)
+
+    # 这些比例特征不引入未来信息，只把首次加购前的行为强度做成更容易学习的形态。
+    out["view_rate_before_cart"] = out["pre_cart_views"].astype(float) / events
+    out["unique_products_per_event"] = out["pre_cart_unique_products"].astype(float) / events
+    out["unique_categories_per_event"] = out["pre_cart_unique_categories"].astype(float) / events
+    out["first_price_to_avg_pre_price"] = out["first_cart_price"].astype(float) / avg_price
+    out["first_price_to_max_pre_price"] = out["first_cart_price"].astype(float) / max_price
+    out["price_gap_first_minus_avg"] = out["first_cart_price"].astype(float) - out["avg_pre_cart_price"].astype(float)
+    out["duration_per_event"] = out["session_duration_before_cart_minutes"].astype(float) / events
+    out["same_product_view_share"] = out["first_cart_product_view_count_before_cart"].astype(float) / views
+    out["same_category_view_share"] = out["first_cart_category_view_count_before_cart"].astype(float) / views
+    return out
+
+
 def prepare_model_frame(df: pd.DataFrame) -> pd.DataFrame:
     model_df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=FEATURE_COLS + [LABEL_COL]).copy()
+    model_df = add_engineered_features(model_df)
+    model_df = model_df.replace([np.inf, -np.inf], np.nan).dropna(subset=LIGHTGBM_FEATURE_COLS + [LABEL_COL]).copy()
     model_df["month"] = model_df["month"].astype(str)
     return model_df
 
 
-def split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+def split_train_validation_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str]:
     train_df = df.loc[df["month"].isin(TRAIN_MONTHS)].copy()
+    validation_df = df.loc[df["month"] == VALIDATION_MONTH].copy()
     test_df = df.loc[df["month"] == TEST_MONTH].copy()
-    if min(len(train_df), len(test_df)) == 0:
+    if min(len(train_df), len(validation_df), len(test_df)) == 0:
         # 如果数据月份不完整，明确退回随机切分，避免误以为仍在做跨月测试。
-        print("Warning: month split is unavailable; falling back to deterministic random split.")
+        print("Warning: month split is unavailable; falling back to deterministic random 60/20/20 split.")
         rng = np.random.default_rng(RANDOM_SEED)
         idx = rng.permutation(len(df))
-        train_end = int(len(df) * RANDOM_SPLIT_TRAIN_FRACTION)
+        train_end = int(len(df) * 0.6)
+        validation_end = int(len(df) * 0.8)
         train_df = df.iloc[idx[:train_end]].copy()
-        test_df = df.iloc[idx[train_end:]].copy()
-        return train_df, test_df, "deterministic random 80/20 split"
-    return train_df, test_df, f"{', '.join(TRAIN_MONTHS)} train; {TEST_MONTH} test"
+        validation_df = df.iloc[idx[train_end:validation_end]].copy()
+        test_df = df.iloc[idx[validation_end:]].copy()
+        return train_df, validation_df, test_df, "deterministic random 60/20/20 split"
+    return (
+        train_df,
+        validation_df,
+        test_df,
+        f"{', '.join(TRAIN_MONTHS)} train; {VALIDATION_MONTH} validation; {TEST_MONTH} test",
+    )
 
 
 def build_feature_matrices(
     train_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
     test_df: pd.DataFrame,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     x_train_raw = np.log1p(train_df[FEATURE_COLS].astype(float).to_numpy())
+    x_validation_raw = np.log1p(validation_df[FEATURE_COLS].astype(float).to_numpy())
     x_test_raw = np.log1p(test_df[FEATURE_COLS].astype(float).to_numpy())
     mean = x_train_raw.mean(axis=0)
     std = x_train_raw.std(axis=0)
     std[std == 0] = 1.0
-    # 标准化只使用训练月份统计量，测试月份保持完全留出。
+    # 标准化只使用训练月份统计量，验证和测试月份保持完全留出。
     x_train = (x_train_raw - mean) / std
+    x_validation = (x_validation_raw - mean) / std
     x_test = (x_test_raw - mean) / std
     y_train = train_df[LABEL_COL].astype(int).to_numpy()
+    y_validation = validation_df[LABEL_COL].astype(int).to_numpy()
     y_test = test_df[LABEL_COL].astype(int).to_numpy()
-    return x_train, x_test, y_train, y_test
+    return x_train, x_validation, x_test, y_train, y_validation, y_test
 
 
-def best_f1_threshold(y_true: np.ndarray, prob: np.ndarray) -> float:
-    # 阈值在训练月份上选择，12 月测试集只用于最终评估。
-    threshold_metrics = [classification_metrics(y_true, prob, float(threshold)) for threshold in MODEL_THRESHOLD_GRID]
-    return float(max(threshold_metrics, key=lambda item: item["f1"])["threshold"])
+def build_lightgbm_matrices(
+    train_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
+    x_train = train_df[LIGHTGBM_FEATURE_COLS].astype(float)
+    x_validation = validation_df[LIGHTGBM_FEATURE_COLS].astype(float)
+    x_test = test_df[LIGHTGBM_FEATURE_COLS].astype(float)
+    y_train = train_df[LABEL_COL].astype(int).to_numpy()
+    y_validation = validation_df[LABEL_COL].astype(int).to_numpy()
+    y_test = test_df[LABEL_COL].astype(int).to_numpy()
+    return x_train, x_validation, x_test, y_train, y_validation, y_test
+
+
+def balanced_accuracy(y_true: np.ndarray, prob: np.ndarray, threshold: float) -> float:
+    y_pred = (prob >= threshold).astype(int)
+    tp = int(((y_pred == 1) & (y_true == 1)).sum())
+    tn = int(((y_pred == 0) & (y_true == 0)).sum())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum())
+    fn = int(((y_pred == 0) & (y_true == 1)).sum())
+    sensitivity = tp / max(tp + fn, 1)
+    specificity = tn / max(tn + fp, 1)
+    return float((sensitivity + specificity) / 2)
+
+
+def classification_metrics_with_balanced_accuracy(
+    y_true: np.ndarray,
+    prob: np.ndarray,
+    threshold: float,
+) -> dict:
+    metrics = classification_metrics(y_true, prob, threshold)
+    metrics["balanced_accuracy"] = balanced_accuracy(y_true, prob, threshold)
+    metrics["predicted_positive_rate"] = float((prob >= threshold).mean())
+    return metrics
+
+
+def best_balanced_accuracy_threshold(y_true: np.ndarray, prob: np.ndarray) -> float:
+    # 阈值在验证月份上选择，12 月测试集只用于最终评估。
+    threshold_metrics = [
+        classification_metrics_with_balanced_accuracy(y_true, prob, float(threshold))
+        for threshold in MODEL_THRESHOLD_GRID
+    ]
+    return float(max(threshold_metrics, key=lambda item: item["balanced_accuracy"])["threshold"])
 
 
 def rule_pre_cart_interest_score(test_df: pd.DataFrame) -> np.ndarray:
@@ -431,23 +543,114 @@ def make_feature_importance(beta: np.ndarray) -> list[dict]:
     )
 
 
+def fit_lightgbm(
+    train_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+) -> tuple[lgb.LGBMClassifier, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    x_train, x_validation, x_test, y_train, y_validation, y_test = build_lightgbm_matrices(
+        train_df,
+        validation_df,
+        test_df,
+    )
+    model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
+    model.fit(
+        x_train,
+        y_train,
+        eval_set=[(x_validation, y_validation)],
+        eval_metric="binary_logloss",
+        callbacks=[lgb.early_stopping(40, verbose=False)],
+    )
+    validation_prob = model.predict_proba(x_validation)[:, 1]
+    test_prob = model.predict_proba(x_test)[:, 1]
+    return model, validation_prob, test_prob, y_train, y_validation, y_test
+
+
+def make_lightgbm_feature_importance(model: lgb.LGBMClassifier) -> list[dict]:
+    raw_importance = model.booster_.feature_importance(importance_type="gain")
+    total_gain = max(float(raw_importance.sum()), 1e-9)
+    rows = [
+        {
+            "feature": name,
+            "importance": float(value / total_gain),
+            "gain": float(value),
+        }
+        for name, value in zip(LIGHTGBM_FEATURE_COLS, raw_importance)
+    ]
+    return sorted(rows, key=lambda item: item["importance"], reverse=True)
+
+
+def model_comparison_rows(result: dict) -> list[dict]:
+    topk_lookup = {
+        (row["model"], row["top_fraction"]): row
+        for row in result["topk"]
+    }
+    rows = []
+    for model_name, metrics_key in [
+        ("logistic_regression", "logistic_metrics"),
+        ("lightgbm", "metrics"),
+    ]:
+        metrics = result[metrics_key]
+        top10 = topk_lookup[(model_name, 0.10)]
+        rows.append(
+            {
+                "model": model_name,
+                "accuracy": metrics["accuracy"],
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1": metrics["f1"],
+                "balanced_accuracy": metrics["balanced_accuracy"],
+                "predicted_positive_rate": metrics["predicted_positive_rate"],
+                "top10_precision": top10["precision_at_k"],
+                "top10_lift": top10["lift"],
+            }
+        )
+    return rows
+
+
 def train_and_evaluate(df: pd.DataFrame) -> dict:
     model_df = prepare_model_frame(df)
-    train_df, test_df, split_note = split_train_test(model_df)
-    x_train, x_test, y_train, y_test = build_feature_matrices(train_df, test_df)
+    train_df, validation_df, test_df, split_note = split_train_validation_test(model_df)
+    x_train, x_validation, x_test, y_train, y_validation, y_test = build_feature_matrices(
+        train_df,
+        validation_df,
+        test_df,
+    )
 
-    # 先在训练月份拟合模型和阈值，再在 12 月做一次最终评估。
+    # 先在训练月份拟合模型，在验证月份选择阈值，再在 12 月做最终评估。
     beta = fit_logistic(x_train, y_train)
-    train_prob = predict_logistic(beta, x_train)
-    threshold = best_f1_threshold(y_train, train_prob)
-    test_prob = predict_logistic(beta, x_test)
-    metrics = classification_metrics(y_test, test_prob, threshold)
+    validation_prob = predict_logistic(beta, x_validation)
+    logistic_threshold = best_balanced_accuracy_threshold(y_validation, validation_prob)
+    logistic_test_prob = predict_logistic(beta, x_test)
+    logistic_validation_metrics = classification_metrics_with_balanced_accuracy(
+        y_validation,
+        validation_prob,
+        logistic_threshold,
+    )
+    logistic_metrics = classification_metrics_with_balanced_accuracy(y_test, logistic_test_prob, logistic_threshold)
+
+    # LightGBM 作为增强模型，主要用于捕捉非线性关系；逻辑回归保留为可解释基线。
+    lightgbm_model, lightgbm_validation_prob, lightgbm_test_prob, _, _, _ = fit_lightgbm(
+        train_df,
+        validation_df,
+        test_df,
+    )
+    lightgbm_threshold = best_balanced_accuracy_threshold(y_validation, lightgbm_validation_prob)
+    validation_metrics = classification_metrics_with_balanced_accuracy(
+        y_validation,
+        lightgbm_validation_prob,
+        lightgbm_threshold,
+    )
+    metrics = classification_metrics_with_balanced_accuracy(y_test, lightgbm_test_prob, lightgbm_threshold)
 
     rule_score = rule_pre_cart_interest_score(test_df)
     topk_rows = topk_table(y_test, rule_score, "rule_pre_cart_interest") + topk_table(
-        y_test, test_prob, "logistic_regression"
+        y_test, logistic_test_prob, "logistic_regression"
+    ) + topk_table(
+        y_test, lightgbm_test_prob, "lightgbm"
     )
-    feature_importance = make_feature_importance(beta)
+    logistic_feature_importance = make_feature_importance(beta)
+    feature_importance = make_lightgbm_feature_importance(lightgbm_model)
     pd.DataFrame(topk_rows).to_csv(PROCESSED_DIR / "cart_conversion_topk.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(feature_importance).to_csv(
         PROCESSED_DIR / "cart_conversion_feature_importance.csv",
@@ -462,21 +665,37 @@ def train_and_evaluate(df: pd.DataFrame) -> dict:
         "sample_rows": int(len(model_df)),
         "split_note": split_note,
         "train_month": " and ".join(TRAIN_MONTHS),
+        "validation_month": VALIDATION_MONTH,
         "test_month": TEST_MONTH,
         "train_rows": int(len(train_df)),
+        "validation_rows": int(len(validation_df)),
         "test_rows": int(len(test_df)),
         "train_positive_rate": float(y_train.mean()),
+        "validation_positive_rate": float(y_validation.mean()),
         "test_positive_rate": float(y_test.mean()),
-        "threshold_selection": "best F1 on training months; TopK/Lift is the primary business evaluation",
-        "features": FEATURE_COLS,
-        "model": "numpy_logistic_regression",
+        "threshold_selection": "best balanced accuracy on validation month; TopK/Lift is the primary business evaluation",
+        "features": LIGHTGBM_FEATURE_COLS,
+        "baseline_features": FEATURE_COLS,
+        "model": "lightgbm_with_numpy_logistic_regression_baseline",
+        "primary_model": "lightgbm",
+        "lightgbm_params": {
+            **LIGHTGBM_PARAMS,
+            "best_iteration": int(lightgbm_model.best_iteration_ or LIGHTGBM_PARAMS["n_estimators"]),
+        },
+        "logistic_threshold": logistic_threshold,
+        "lightgbm_threshold": lightgbm_threshold,
+        "logistic_validation_metrics": logistic_validation_metrics,
+        "logistic_metrics": logistic_metrics,
+        "validation_metrics": validation_metrics,
         "metrics": metrics,
         "feature_importance": feature_importance,
+        "logistic_feature_importance": logistic_feature_importance,
         "topk": topk_rows,
         "same_product_positive_rate_test": float(test_df["label_same_product_purchase_after_cart"].mean()),
-        "low_probability_high_value": low_probability_high_value(test_df, test_prob),
+        "low_probability_high_value": low_probability_high_value(test_df, lightgbm_test_prob),
         "baseline_note": "rule_pre_cart_interest = log1p(pre_cart_views) + first-cart-product view count + same-product signal + session-duration signal",
     }
+    result["model_comparison"] = model_comparison_rows(result)
     (PROCESSED_DIR / "cart_conversion_metrics.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -486,7 +705,7 @@ def train_and_evaluate(df: pd.DataFrame) -> dict:
 
 def save_lift_chart(topk_rows: list[dict], path: Path) -> None:
     df = pd.DataFrame(topk_rows)
-    model_df = df.loc[df["model"] == "logistic_regression"].sort_values("top_fraction")
+    model_df = df.loc[df["model"] == "lightgbm"].sort_values("top_fraction")
     data = [(f"Top {int(row.top_fraction * 100)}%", float(row.lift)) for row in model_df.itertuples()]
     save_bar_chart(
         data,
@@ -506,7 +725,10 @@ def save_lift_chart(topk_rows: list[dict], path: Path) -> None:
 
 
 def build_figures(result: dict) -> None:
-    feature_data = [(item["feature"], abs(float(item["coef"]))) for item in result["feature_importance"][:10]]
+    feature_data = [
+        (FEATURE_LABELS.get(item["feature"], item["feature"]), float(item["importance"]))
+        for item in result["feature_importance"][:10]
+    ]
     save_bar_chart(
         feature_data,
         "购物车转化模型特征重要性",
@@ -515,7 +737,7 @@ def build_figures(result: dict) -> None:
         left_margin=300,
         right_margin=80,
         label_max_chars=24,
-        value_format="{value:.2f}{unit}",
+        value_format="{value:.1%}{unit}",
         label_font_size=20,
         value_font_size=19,
         min_bar_height=28,

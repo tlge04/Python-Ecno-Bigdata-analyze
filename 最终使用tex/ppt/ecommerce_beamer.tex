@@ -187,7 +187,7 @@
       \begin{itemize}
         \item 用户-月份特征表
         \item 购物车 session 转化样本
-        \item 逻辑回归与规则基线
+        \item 逻辑回归、LightGBM 与规则基线
         \item TopK/Lift 与特征解释
       \end{itemize}
       \end{block}
@@ -500,7 +500,7 @@ for chunk in reader:
   观察点 & session 的首次 cart 时刻 \\
   主标签 & 首次 cart 后，session 内是否发生任意 purchase \\
   辅助标签 & 首次 cart 的商品后续是否被 purchase \\
-  划分方式 & 10--11 月训练，12 月测试 \\
+  划分方式 & 10 月训练，11 月验证，12 月测试 \\
   \bottomrule
   \end{tabular}
   \end{table}
@@ -531,22 +531,25 @@ for chunk in reader:
       \midrule
       12 月测试样本 & 99,323 \\
       测试集购买率 & 48.12\% \\
-      Precision & 48.67\% \\
-      Recall & 97.13\% \\
-      F1 & 0.648 \\
+      Accuracy & 58.74\% \\
+      Precision & 58.01\% \\
+      Recall & 51.65\% \\
+      F1 & 0.546 \\
       \bottomrule
       \end{tabular}
       \end{table}
     \end{column}
     \begin{column}{0.46\textwidth}
       \begin{itemize}
-        \item 分类阈值用于形成候选池。
+        \item 模型为 LightGBM，逻辑回归作为 baseline。
+        \item 阈值由 11 月验证集选择。
+        \item 硬分类只作为参考。
         \item 高意向 session 的排序质量更接近营销场景。
         \item TopK 和 Lift 用于衡量有限预算下的触达效率。
       \end{itemize}
     \end{column}
   \end{columns}
-  \keytakeaway{高召回率适合扩大候选池，TopK 排序用于确定优先触达人群。}
+  \keytakeaway{硬分类不是主要亮点，TopK 排序更贴近购物车运营场景。}
 \end{frame}
 
 \begin{frame}
@@ -562,16 +565,16 @@ for chunk in reader:
       \toprule
       用户池 & Precision & Lift \\
       \midrule
-      Top 1\% & 66.67\% & 1.39 \\
-      Top 5\% & 61.54\% & 1.28 \\
-      Top 10\% & 60.22\% & 1.25 \\
-      Top 20\% & 58.31\% & 1.21 \\
+      Top 1\% & 71.10\% & 1.48 \\
+      Top 5\% & 69.15\% & 1.44 \\
+      Top 10\% & 67.50\% & 1.40 \\
+      Top 20\% & 64.54\% & 1.34 \\
       \bottomrule
       \end{tabular}
       \end{table}
     \end{column}
   \end{columns}
-  \keytakeaway{Top 10\% 高分 session 的真实购买率达到 60.22\%，明显高于 12 月整体购买率。}
+  \keytakeaway{Top 10\% 高分 session 的真实购买率达到 67.50\%，明显高于 12 月整体购买率。}
 \end{frame}
 
 \begin{frame}
@@ -582,9 +585,9 @@ for chunk in reader:
     \end{column}
     \begin{column}{0.40\textwidth}
       \begin{itemize}
-        \item 首次 cart 前 session 持续时间影响最大。
-        \item 首次加购价格和浏览商品范围提供额外信号。
-        \item 加购小时、商品此前浏览次数也能帮助排序。
+        \item 单次行为间隔和浏览比例影响较大。
+        \item 首次加购价格和加购前价格水平提供额外信号。
+        \item session 持续时间、加购小时也能帮助排序。
       \end{itemize}
     \end{column}
   \end{columns}
@@ -597,7 +600,7 @@ for chunk in reader:
     \item 高预测分数表示更可能自然购买，不等于最需要发券。
     \item 高自然转化用户：适合库存提醒、支付提醒、服务保障。
     \item 低自然转化但高价格 session：更接近召回候选池。
-    \item 本文识别到 5,545 个“低自然转化概率 + 高加购价格”session。
+    \item 本文识别到 4,985 个“低自然转化概率 + 高加购价格”session。
     \item 数据没有优惠券、曝光、库存和物流字段，因此不做促销因果解释。
   \end{itemize}
   \keytakeaway{高分表示自然转化可能高，不代表发券一定有效。}
@@ -612,7 +615,7 @@ for chunk in reader:
     \item 11 月和 12 月带来更大行为规模，但转化效率不能只靠流量判断。
     \item 销售额集中在消费电子、家电相关品类和 200--1000 的主力价格带。
     \item 用户-月份模型说明加购是强购买信号，但更适合解释购买倾向。
-    \item 购物车模型用首次加购前信息做跨月测试，Top 10\% 高分 session 真实购买率为 60.22\%。
+    \item 购物车模型用首次加购前信息做跨月测试，Top 10\% 高分 session 真实购买率为 67.50\%。
   \end{enumerate}
   \keytakeaway{从行为日志到漏斗和排序结果，分析对象始终围绕消费路径展开。}
 \end{frame}
@@ -636,7 +639,7 @@ for chunk in reader:
         \item 唯一用户漏斗采用抽样估计
         \item 数据缺少曝光、优惠、库存和物流字段
         \item 月度模型仍是购买倾向识别口径
-        \item 后续可加入滚动窗口、树模型和序列特征
+        \item 后续可加入滚动窗口、商品历史转化率和序列特征
       \end{itemize}
       \end{block}
     \end{column}
@@ -649,8 +652,8 @@ for chunk in reader:
   \begin{itemize}
     \item 数据处理：直接扫描三个月压缩日志，保留全量行为规模。
     \item 统计口径：区分事件数、用户数、抽样估计和 session 样本。
-    \item 模型评估：购物车模型采用 10--11 月训练、12 月测试。
-    \item 结果解释：同时给出描述性图表、逻辑回归系数和 TopK/Lift。
+    \item 模型评估：购物车模型采用 10 月训练、11 月验证、12 月测试。
+    \item 结果解释：同时给出描述性图表、模型对照、特征重要性和 TopK/Lift。
     \item 解释边界：不把相关性解释为促销因果效果。
   \end{itemize}
   \keytakeaway{口径一致、跨月验证和解释边界，是本分析的主要支撑。}
